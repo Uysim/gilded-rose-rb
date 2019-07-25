@@ -5,50 +5,24 @@ class GildedRose
 
   def update_quality()
     @items.each do |item|
-      if item.name != 'Aged Brie' and item.name != 'Backstage passes to a TAFKAL80ETC concert'
-        if item.quality > 0
-          if item.name != 'Sulfuras, Hand of Ragnaros'
-            item.quality = item.quality - 1
-          end
-        end
-      else
-        if item.quality < 50
-          item.quality = item.quality + 1
-          if item.name == 'Backstage passes to a TAFKAL80ETC concert'
-            if item.sell_in < 11
-              if item.quality < 50
-                item.quality = item.quality + 1
-              end
-            end
-            if item.sell_in < 6
-              if item.quality < 50
-                item.quality = item.quality + 1
-              end
-            end
-          end
-        end
-      end
-      if item.name != 'Sulfuras, Hand of Ragnaros'
-        item.sell_in = item.sell_in - 1
-      end
-      if item.sell_in < 0
-        if item.name != 'Aged Brie'
-          if item.name != 'Backstage passes to a TAFKAL80ETC concert'
-            if item.quality > 0
-              if item.name != 'Sulfuras, Hand of Ragnaros'
-                item.quality = item.quality - 1
-              end
-            end
-          else
-            item.quality = item.quality - item.quality
-          end
-        else
-          if item.quality < 50
-            item.quality = item.quality + 1
-          end
-        end
-      end
+      degrader_class = resolve_degrader(item)
+      degrader_class.degrade(item)
     end
+  end
+
+
+  private
+
+  def resolve_degrader(item)
+    [
+      LegendaryQualityDegrader,
+      IncreaseQualityDegrader,
+      BackstageQualityDegrader,
+      TwiceQualityDegrader
+    ].each do |degrader_class|
+      return degrader_class if degrader_class::ITEMS.include?(item.name)
+    end
+    NormalQualityDegrader
   end
 end
 
@@ -63,5 +37,105 @@ class Item
 
   def to_s()
     "#{@name}, #{@sell_in}, #{@quality}"
+  end
+end
+
+class ApplicationQualityDegrader
+  attr_reader :item
+
+  def initialize(item)
+    @item = item
+  end
+
+  def self.degrade(item)
+    new(item).degrade
+  end
+
+  def degrade
+    descrease_date
+    degrade_quality
+    limit_quality_value
+    item
+  end
+
+  private
+
+  def degrade_quality
+    raise "degrade_quality need to be implement"
+  end
+
+  def descrease_date
+    item.sell_in = item.sell_in - 1
+  end
+
+  def limit_quality_value
+    item.quality = 50 if item.quality > 50
+    item.quality = 0 if item.quality < 0
+  end
+
+  def quality_to_change
+    item.sell_in < 0 ? 2 : 1
+  end
+end
+
+class NormalQualityDegrader < ApplicationQualityDegrader
+  private
+
+  def degrade_quality
+    item.quality = item.quality - quality_to_change
+  end
+end
+
+class LegendaryQualityDegrader < ApplicationQualityDegrader
+  ITEMS = ["Sulfuras, Hand of Ragnaros"]
+
+  def degrade
+    item
+  end
+end
+
+class IncreaseQualityDegrader < ApplicationQualityDegrader
+  ITEMS = ["Aged Brie"]
+
+  private
+
+  def degrade_quality
+    item.quality = item.quality + 1
+  end
+end
+
+class BackstageQualityDegrader < ApplicationQualityDegrader
+  ITEMS = ["Backstage passes to a TAFKAL80ETC concert"]
+
+  private
+
+  def degrade_quality
+    item.quality = item.quality + quality_to_change
+  end
+
+  def limit_quality_value
+    super
+    item.quality = 0 if item.sell_in < 0
+  end
+
+  def quality_to_change
+    return 3 if item.sell_in <= 5
+    return 2 if item.sell_in <= 10
+    1
+  end
+end
+
+
+class TwiceQualityDegrader < ApplicationQualityDegrader
+  ITEMS = ["Conjured Mana Cake"]
+
+  private
+
+  def degrade_quality
+    item.quality = item.quality - quality_to_change
+  end
+
+  def quality_to_change
+    super * 2
   end
 end
